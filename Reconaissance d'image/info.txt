@@ -1,0 +1,2 @@
+reconaissance de numéros ecrits à la mains.
+Image de l*h = 20*30 NB
