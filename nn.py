@@ -1,106 +1,154 @@
-import random
-import math
+"""NOTE: Le rajout du coeff de biais a considérablement amélioré le réseau! Pour la fction XOR, l'EQM mini obtenu après 1000 ité est 0.05, avec le coeff debiais on est à 0.0001 en 6 ité!!!"""
+
+# 0 <= nochouche <= len(nbneurone) , et nocouche=0 correspond à l'entrée, nocouche = 1 correspond à la première couche de neurone
+#poids = [liaison nocouche -> nochouche+1][noneurone de la couche nochouche+1][noentre]
+#nbneurone[nocouche] = nbneurone de la couche nocouche, nbneurone[0] correspond donc au nombre d'entrées du réseau!!
+#sortie = [nocouche][noneurone] correspond à la sortie du neurone. Pour, sortie[0], on parle donc des valeurs en entrée du réseau
+nbneurone = [1,10]
+
+from random import *
+from math import *
 import matplotlib.pyplot as pt
-#Réseau de neurone dont l'apprentissage est fait par un algorithme génétique (séléction, mutation), où une seule liste de poids sera seléctionnée parmis une population de 100 listes de poids
-#Declaration/Capture de variables
-nbiterations = 300 #int(input("Saisissez le nombre d'itérations : "))
-noiteration = 0
-nbtests = 4 #nombre de tests sur un chaque membres pour déterminer la somme des EQM
-notest = 0
-nbmembres = 100 #int(input("Saisissez la taille des populations : ")) #donne le nombre de membres dans les populations
-nomembre = 0 #numéro du membre courant (de 0 à nbmembres-1)
-seuilEQM = 0 #float(input("Saisissez le seuil EQM en dessous duquel les itérations s'arrêtent : "))
-bestEQM = 9999 #Valeur de la plus faible erreur obtenue par un membre de la population (intialisée a une forte valeur pour retenir les valeur plus faibles
-membrebestEQM = 0 #numero du membre ayant obtenu la plus faible erreur
-nbcouches = 2 #int(input("Saisissez le nombre de couches de neurones : ")) #nombre de couches de neurones, sans compter la couche d'entrees qui est comptee dans nbneurones
-nocouche = 0 #numero couche courante (de 0 à nbcouches) (les entrees du reseau sont considérées comme la couche 0)
-noneurone = 0 #numero neurone courant (de 0 à nbneurones[nocouche] - 1)
-noneuronesuiv = 0 #numero neurone couche suivante
-noentree = 0 #numero entree courante (de 0 à nbneurones[nocouche - 1] - 1), correspond donc à un neurone de la couche précédente
-ans = 0 #Variable temporaire
+import copy
 
-nbneurones = [2,2,1] #Donne le nombre de neurones dans la couche souhaitée : nbneurones[nocouche]
-"""nbneurones[0] = int(input("Saisissez le nombre d'entrees : "))
-for nocouche in range(1, nbcouches+1):
-    print("Saisissez le nombre de neurones de la couche ", nocouche, " : ")
-    nbneurones.append(int(input()))"""
-EQM = [0]*nbmembres #Donne la somme des Erreur Quadratique Moyenne d'une itération pour chaque membre : EQM[nomembre]
+"""Idee: liste qui contient les sorties de chaque neurones et dont la première case contient l'entrée du réseau.
+Il y aura donc une fonction de propagation qui aura pour but de caluler les sorties de la couche suivante de neurones"""
 
+def genpoidsalea(nbneurone):
+    poids = []
+    for nocouche in range(0,len(nbneurone)-1):
+        poids.append([])
+        for noneurone in range(0,nbneurone[nocouche+1]):
+            poids[nocouche].append([])
+            for noentre in range(0,nbneurone[nocouche]+1): #le +1 est du aux coefficient de biais: s = sum(ei*wi)+coeffbiais
+                poids[nocouche][noneurone].append((random()-0.5)*2) #on fixe le coeef de biais: c'est le dernier coeff. les autres coeff ont ds la case d'indice associée à l'entree
+    return poids
+    
+def gensortie(nbneurone):
+    sortie = []
+    for i in nbneurone:
+        sortie.append([0]*i)
+    return sortie
 
-#Construction de la liste poids, donnant la liste des poids pour chaque membres d'une population poids[nomembre][nocouche][noneurone][noentree]
-poids = []
-for nomembre in range(0,nbmembres):
-    poids.append([[]])
-    for nocouche in range(1, nbcouches+1):
-        poids[nomembre].append([])
-        for noneurone in range(nbneurones[nocouche]):
-            poids[nomembre][nocouche].append([])
-            for noentree in range(nbneurones[nocouche-1]+1): #le nombre d'entrees d'un neurone correspond au nombre de neurones +1 dans la couche précédente à cause du coëfficient de biais en fin de la liste (poids[nbneurones[nocouche-1]]
-                poids[nomembre][nocouche][noneurone].append(2*random.random()-1)
-                
-                
-outneurone = [[0]*nbneurones[nocouche] for nocouche in range(nbcouches+1)] #Donne les sorties de chaque neurone ou les entrees lorsque nocouche = 0 et les sorties du reseau entier pour nocouche = nbcouches, outneurone[nocouche][noneurone]
-gradient = [[0]*nbneurones[nocouche] for nocouche in range(nbcouches+1)] #Donne le gradient local de chaque neurone, gradient[nocouche][noneurone]
-erreur = [0]*nbneurones[nbcouches] #Donne l'erreur de chaque neurone de la couche de sortie, erreur[noneurone], où la couche courante est la couche de sortie, donc nocouche = nbcouche
-outvoulu = [0]*nbneurones[nbcouches] #Donne la sortie désirée pour l'exemple traité pour chaque neurone de la couche de sortie, outvoulu[noneurone]
-list = [[0,0,0],[1,1,0],[0,1,1],[1,0,1]] #Entrées et resultats de la fonction XOR
-X = []
-Y = []
-for noiteration in range(nbiterations):
-    for notest in range(nbtests):
-        #Construction d'un exemple d'apprentissage de la fonction XOR
-        outneurone[0][0] = list[notest][0]
-        outneurone[0][1] = list[notest][1]
-        outvoulu[0] = list[notest][2]
-        #Fin construction exemple
-        for nomembre in range(0,nbmembres):
-            #Propagation des entrées vers l'avant du réseau
-            for nocouche in range(1, nbcouches+1):
-                for noneurone in range(0, nbneurones[nocouche]):
-                    ans = 0
-                    for noentree in range(0, nbneurones[nocouche-1]): #somme des entrees multipliées par leur poids
-                        ans += outneurone[nocouche-1][noentree]*poids[nomembre][nocouche][noneurone][noentree]
-                    ans += poids[nomembre][nocouche][noneurone][nbneurones[nocouche-1]] #on rajoute le coëfficient de biais
-                    try:
-                        outneurone[nocouche][noneurone] = 1/(1+math.exp(-ans)) #on passe par la fonction non linéaire sigmoide et on le met dans la liste outneurone
-                    except OverflowError: #il se peut que ans soit excessivement grand pour les fonctions
-                        if ans > 0:
-                            outneurone[nocouche][noneurone] = 1.0
-                        else:
-                            outneurone[nocouche][noneurone] = 0.0
-            #Fin propagation
-            #Calcul de la somme des Erreurs Quadratiques Moyennes
-            ans = 0
-            for noneurone in range(0, nbneurones[nbcouches]):
-                erreur[noneurone] = outvoulu[noneurone]-outneurone[nbcouches][noneurone] #on calcule l'erreur de chaque sortie
-                ans += pow(erreur[noneurone],2) #calcul de la somme des erreurs quadratiques pour calculer l'erreur quadratique moyenne
-            if notest == 0:
-                EQM[nomembre] = math.sqrt(ans) #Lorsque l'on est au premier test, on réinitialise les valeurs de la liste
-            else:
-                EQM[nomembre] += math.sqrt(ans)
-                if notest == nbtests-1:
-                    EQM[nomembre] /= nbtests
-            
-            #Fin calcul EQM
-    #Selection du meilleur membre, sauvegarde de sa liste de poids
-    bestEQM = 99
-    for nomembre in range(0, nbmembres):
-        if EQM[nomembre] < bestEQM:
-            bestEQM = EQM[nomembre]
-            membrebestEQM = nomembre
-    if bestEQM <= seuilEQM:
-        break
-    if membrebestEQM != 0:
-        poids[0] = poids[membrebestEQM] #On enregistre la liste des poids du meilleur membre sous le numéro de membre 1
-    X.append(noiteration)
-    Y.append(bestEQM)
-    #Fin de selection du meilleur membre
-    #Mutation des poids
-    for nomembre in range(1, nbmembres):
-        for nocouche in range(1, nbcouches+1):
-            for noneurone in range(0, nbneurones[nocouche]):
-                for noentree in range(0, nbneurones[nocouche-1]+1):
-                    poids[nomembre][nocouche][noneurone][noentree] = poids[0][nocouche][noneurone][noentree] + 100*(random.random()-0.5) #on modifie aleatoirement la valeur des poids (sauf celles des poids du membre #0, qui est une sauvegarde du meilleur précédent)
-pt.plot(X,Y)
-pt.show()
-print (noiteration,poids[membrebestEQM])
+def sigm(x):
+    if x<-500:
+        return 0
+    elif x>500:
+        return 1
+    else:
+        return 1/(1+exp(-x))
+
+def neurone(poids, sortie, nocouche, noneurone): #retourne la sortie d'un neurone
+    entre = sortie[nocouche-1]
+    pds = poids[nocouche-1][noneurone]
+    if len(entre) != len(pds)-1: #pendant les tests!!
+        raise IndexError
+    sum = 0
+    for i in range(len(entre)):
+        sum += entre[i]*pds[i]
+    sum += pds[-1] #on rajoute le coeff de biais
+    return sigm(sum)
+    
+def propagation(poids, sortie, nocouche, nbneurone): #retourne la liste sortie completée, calcule la sortie de la couche nocouche en fonction de celle de nocouche-1
+    for noneurone in range(nbneurone[nocouche]):
+        sortie[nocouche][noneurone] = neurone(poids, sortie, nocouche, noneurone)
+    return sortie
+
+def reseau(poids, sortie, nbneurone): #seule sortie[0] est remplie, le reste de la liste est obsolète. Reseau la revoie completée
+    for nocouche in range(1,len(nbneurone)):
+        sortie = propagation(poids, sortie, nocouche, nbneurone)
+    return sortie
+
+##Algo génétique d'apprentissage: population de 40 réseaux. La génération suivante comprend le meilleur des réseaux et ce même réseau muté
+
+def mute(poids,amplitude=30,probmutation=0.8): #promutation : probabilité qu'un poids mute; amplitude: valeur max de fluctuation du poids
+    lst = copy.deepcopy(poids) #deepcopy obligé pour eviter les alias avec poids...
+    for i in range(len(lst)):
+        for j in range(len(lst[i])):
+            for k in range(len(lst[i][j])):
+                if random()<probmutation:
+                    lst[i][j][k] += amplitude*2*(random()-0.5)
+    return lst
+    
+def gengeneration(meilleur,population): #meilleur=meilleur poids de la génération précedente
+    generation = [meilleur]
+    for i in range(1,population):
+        nouveau = mute(meilleur)
+        generation.append(nouveau)
+    return generation
+    
+def EQ(sortie): #determine l'erreur quadratique du réseau
+    resreseau = sortie[-1]
+    resvoulu = loi(sortie[0])
+    if len(resreseau) != len(resvoulu): # juste pr les test!!
+        raise IndexError
+    sum = 0
+    for i in range(len(resreseau)):
+        sum += (resreseau[i]-resvoulu[i])**2
+    return sum
+
+def EQM(poids,nbneurone,nbtest = 30): #détermine le carré de l'erreur quadratique moyenne d'un réseau; nbtest = nombre de sortie de réseau calculée
+    sum = 0
+    for i in range(nbtest):
+        sortie = gensortie(nbneurone)
+        sortie[0] = test()
+        sortie = reseau(poids, sortie, nbneurone)
+        sum += EQ(sortie)
+    return sum/nbtest
+    
+def apprentissage(nbneurone, population = 100, EQMvoulu = 0.01, generationmax = 100): #generationmax = val de la gene max pr eviter boucle infinie si jamais EQM non atteint
+    generation = [genpoidsalea(nbneurone) for i in range(population)]
+    #On détermine quel poids donne le meilleur EQM
+    nobestEQM = 0 #membre de la pop avec le meilleur EQ
+    bestEQM = EQMvoulu + 1
+    nogeneration = 0
+    X = []
+    Y = []
+    while bestEQM>EQMvoulu and nogeneration<=generationmax:
+        nobestEQM= 0
+        bestEQM = EQM(generation[0],nbneurone)
+        for nomembre in range(1,population):
+            EQMmembre = EQM(generation[nomembre],nbneurone)
+            if EQMmembre < bestEQM:
+                bestEQM = EQMmembre
+                nobestEQM = nomembre
+        generation = gengeneration(generation[nobestEQM],population)
+        if nogeneration%10 == 0:
+            print("Generation ",nogeneration)
+        X.append(nogeneration)
+        Y.append(bestEQM)
+        nogeneration += 1
+    pt.plot(X,Y)
+    pt.show()
+    return (generation[0], nogeneration, bestEQM)
+        
+## Définition de la LOI du réseau (sortie en fonction de l'entrée) et de la base de TEST. Ici la loi est: le réseau active la sortie dont le numéro est celui de la 1° decimale de l'entree
+
+def loi(entre): #renvoie ce que l'on veut dans sortie[-1], en foncton de ce que l'on a en entre = sortie[0]  (on renvoie donc une liste!! et on donne en entree une liste!!)
+    a = int(entre[0]*10)
+    res = [0]*10
+    res[a] = 1
+    return res
+
+def test(): #renvoie ce que l'on doit mettre dans sortie[0]
+    return [random()]
+    
+"""def loi(entre):
+    [a,b] = entre
+    return [int((a*b==0 and a+b==1))]
+
+vartest = 0
+
+def test(): #avec vartest, chaque appel de test() revoie la donnée suivante
+    global vartest
+    vartest += 1
+    list = ([0,0],[1,1],[0,1],[1,0])
+    return list[vartest%4]"""
+    
+##
+def ex(poids,nbneurone,entre):
+    sortie = gensortie(nbneurone)
+    sortie[0] = [entre]
+    sortie = reseau(poids,sortie,nbneurone)
+    m = sortie[-1]
+    return sortie
